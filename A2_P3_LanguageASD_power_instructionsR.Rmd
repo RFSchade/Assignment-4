@@ -1,0 +1,125 @@
+---
+title: "Assignment 2 part 3 - Language Development in ASD - Power and simulations"
+author: "Rebecca Folmer Scahde"
+date: "Not yet"
+output: 
+  md_document: 
+      variant: markdown_github
+---
+
+```{r setup, include=FALSE}
+# Loading packages
+pacman::p_load(tidyverse,lme4, Matrix)
+install.packages("backports")
+install.packages("simr", dependencies = T)
+library("simr")
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Welcome to the third exciting part of the Language Development in ASD exercise
+
+In this part of the assignment, we try to figure out how a new study should be planned (i.e. how many participants?) in order to have enough power to replicate the findings (ensuring our sample size is adequate, our alpha at 0.05 and our beta (acually power) at 0.8):
+1- if we trust the estimates of the current study. Report the power analysis and comment on what you can (or cannot) use its estimates for.
+2- if we are skeptical of the current study. Report the power analysis and comment on what you can (or cannot) use its estimates for.
+3- if we only have access to 30 participants. Identify the power for each relevant effect and discuss whether it's worth to run the study and why
+The list above is also what you should discuss in your code-less report.
+
+
+## Learning objectives
+
+- Learn how to calculate statistical power
+- Critically appraise how to apply frequentist statistical power
+
+### Exercise 1
+
+How much power does your study have (if your model estimates are quite right)?
+- Load your dataset (both training and testing), fit your favorite model, assess power for your effects of interest (probably your interactions).
+- Report the power analysis and comment on what you can (or cannot) use its estimates for.
+- Test how many participants you would have to have to replicate the findings (assuming the findings are correct)
+
+N.B. Remember that main effects are tricky once you have interactions in the model (same for 2-way interactions w 3-way interactions in the model). If you want to test the power of main effects, run a model excluding the interactions.
+N.B. Check this paper: https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.12504
+You will be using:
+- powerSim() to calculate power
+- powerCurve() to estimate the needed number of participants
+- extend() to simulate more participants
+
+```{r}
+#-----> Loading dataframes (Training and Test)
+test <- read_csv("test.csv")
+train <- read_csv("train.csv")
+# ALL THE DATA!
+all <- merge(train, test, all = T)
+
+#-----> Power analysis
+# Fitting a model to the data
+all$Child.ID <- as.factor(all$Child.ID)
+m1 <- lmer(CHI_MLU ~ Visit * Diagnosis * verbalIQ1 + (1|Child.ID)+(0+Visit|Child.ID), all, REML = F, control = lmerControl(optimizer = "nloptwrap", calc.derivs = F))
+summary(m1)
+
+
+small <- lmer(CHI_MLU ~ Visit + (1|Child.ID) + (0+Visit|Child.ID), all)
+summary(small)
+# Figuring out the expected effect size
+range(train$CHI_MLU)
+median(train$CHI_MLU)
+mean(train$CHI_MLU)
+# > Fixed effects = 0.5 morphemes. 
+
+# Checking the fixed effect
+set.seed(123)
+fixef(m1)["Visit:DiagnosisTD"]
+# Specifying the effect size
+fixef(m1)["Visit:DiagnosisTD:verbalIQ1"] <- 0.05
+
+# Actual power calculations
+powerSim(m1, test = fixed("Visit:DiagnosisTD:verbalIQ1"), nsim=100)
+
+powerSim(m1, test = fixed("Visit:Diagnosis:verbalIQ1"), nsim = 100)
+# Ok, so, I can get it to work, but only whith very specific effects - WHY?! - Aniway, moving on...
+
+#-----> Checking how many participants we would need to replicate findings
+# Using powerCurve to estimate the number of participants
+pc1 <- powerCurve(m1, test = fixed("Visit:Diagnosis:verbalIQ1"), along = "Child.ID", nsim = 100)
+print(pc1)
+# > For some reason, this effect seems to be really, really robust. We already have 100% power with 9 participants - 85 rows. Granted, this is a repeated measures study, but this still makes me doubt the results. 
+
+# Using extend to simulate more particionats for funsies
+m2 <- extend(m1, within = "Child.ID", n=20)
+nrow(getData(m2))
+nrow(getData(m1))
+new_data <- getData(m2)
+summary(m2)
+powerSim(m2)
+nlevels(new_data$Child.ID)
+range(new_data$Visit)
+# > Doing it like this seems to increase Child.ID, but strangely not the number of levels in Child.ID - Strange.
+list <- as.numeric(new_data$Child.ID)
+range(list)
+print(list)
+# But this says differently. Stange.
+# I have no Idea what the extend functon has just done. hm. I'll ask the studygroup.
+```
+
+
+### Exercise 2
+
+How would you perform a more conservative power analysis?
+- Identify and justify a minimum effect size for each of your relevant effects
+- take the model from exercise 1 and replace the effects with the minimum effect size that you'd accept.
+- assess the power curve by Child.ID, identifying an ideal number of participants to estimate each effect
+- if your power estimates do not reach an acceptable threshold simulate additional participants and repeat the previous analysis
+- Report the power analysis and comment on what you can (or cannot) use its estimates for.
+
+```{r}
+
+```
+
+
+### Exercise 3
+
+Assume you have only the resources to collect 30 kids (15 with ASD and 15 TDs). Identify the power for each relevant effect and discuss whether it's worth to run the study and why
+
+```{r}
+
+```
